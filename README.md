@@ -10,12 +10,12 @@ for threaded cylinders. These cylinders can be configured via the Cheetah3D
 property manager through attributes like radius, number of thread turns,
 thread height... and so on.
 
-![alt text](https://www.dropbox.com/s/gvihlk1qjldk0dt/ThreadEditor.png?dl=0 "Cheetah3D Object Editor")
+![alt text](https://www.dropbox.com/s/gvihlk1qjldk0dt/ThreadEditor.png "Cheetah3D Object Editor")
 
 The so created threaded cylinders can then be used in conjunction with all
 other, normal Cheetah3D objects. You can for example create a bolt nut by using
 the boolean operator, subtracting a threaded cylinder from the nut.
 
-![alt text](https://www.dropbox.com/s/scw45yoze26zlwo/ThreadRender.png?dl=0 "Bolt Nut Rendered")
+![alt text](https://www.dropbox.com/s/scw45yoze26zlwo/ThreadRender.png "Bolt Nut Rendered")
 
 Have fun with this script.
