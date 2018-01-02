@@ -10,16 +10,16 @@ for threaded cylinders. These cylinders can be configured via the Cheetah3D
 property manager through attributes like radius, number of thread turns,
 thread height... and so on.
 
-![](Images/ThreadEditor.png)
+![](Images/ThreadEditor.png "Script parameters in editor")
 
 The so created threaded cylinders can then be used in conjunction with all
 other, normal Cheetah3D objects. You can for example create a bolt nut by using
 the boolean operator, subtracting a threaded cylinder from the nut.
 
-![](Images/ThreadRender.png)
+![](Images/ThreadRender.png "A rendered bolt nut")
 
 ## Installation:  
-Copy the script to the
+Copy the [Thread.js script](Thread.js) to the
 
 `~/Library/Application Support/Cheetah3D/Scripts/Polygonobj/` 
 
