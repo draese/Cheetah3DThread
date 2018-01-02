@@ -7,7 +7,7 @@
 /* Cheetah3D object that can be used in subsequent operations.                */
 /*                                                                            */
 /* Installation:                                                              */
-/*		Copy the script to the                                                  */
+/*    Copy the script to the                                                  */
 /*    "~/Library/Application Support/Cheetah3D/Scripts/Polygonobj/" folder    */
 /*    and restart Cheetah3D                                                   */
 /*                                                                            */
