@@ -52,12 +52,12 @@ const LEADOUT  = "Create Lead-Out";
 // -------------------------------------------------------------------------
 function buildUI( obj ){
   obj.setParameter( "name","Thread" );
-  obj.addParameterFloat( INNERRAD, 1.0, 0.1, 10, true, true );
-  obj.addParameterFloat( OUTERRAD, 1.2, 0.1, 10, true, true );
+  obj.addParameterFloat( INNERRAD, 1.0, 0.1, 100, true, true );
+  obj.addParameterFloat( OUTERRAD, 1.2, 0.1, 100, true, true );
   obj.addParameterInt( STEPS,64,10,500,true,true);
   obj.addParameterInt( TURNS, 6, 1, 1000, true, true );
-  obj.addParameterFloat( MOVE, 0.3, 0.01, 10, true, true );
-  obj.addParameterFloat( LEAD, 0.1, 0.01, 10, true, true );
+  obj.addParameterFloat( MOVE, 0.3, 0.01, 100, true, true );
+  obj.addParameterFloat( LEAD, 0.1, 0.01, 100, true, true );
   obj.addParameterBool( LEADOUT, true, false, true, true, true );
   obj.addParameterBool( LEADIN, true, false, true, true, true );
 }
