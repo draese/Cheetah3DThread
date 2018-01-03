@@ -21,6 +21,11 @@
 // decare the input UI parameters for the script
 // --------------------------------------------------
 
+// is this a left or right rotating thread
+const DIRECTION = "Direction";
+const LEFT      = "Left";
+const RIGHT     = "Right";
+
 // the radius of the inner cylinder
 const INNERRAD = "Inner Radius";
 
@@ -37,7 +42,7 @@ const TURNS    = "Turns";
 const MOVE     = "Height / Turn";
 
 // space before and after thread starts/ends
-const LEAD     = "Lead";
+const LEAD     = "Lenght";
 
 // indicator that we want to create a lead - in (bottom)
 const LEADIN   = "Create Lead-In";
@@ -52,11 +57,16 @@ const LEADOUT  = "Create Lead-Out";
 // -------------------------------------------------------------------------
 function buildUI( obj ){
   obj.setParameter( "name","Thread" );
+  obj.addParameterSelector( DIRECTION, [LEFT, RIGHT ], true, true );
+
+  obj.addParameterSeparator( "Thread Parameers" );
   obj.addParameterFloat( INNERRAD, 1.0, 0.1, 100, true, true );
   obj.addParameterFloat( OUTERRAD, 1.2, 0.1, 100, true, true );
   obj.addParameterInt( STEPS,64,10,500,true,true);
   obj.addParameterInt( TURNS, 6, 1, 1000, true, true );
   obj.addParameterFloat( MOVE, 0.3, 0.01, 100, true, true );
+
+  obj.addParameterSeparator( "Lead Parameters" );
   obj.addParameterFloat( LEAD, 0.1, 0.01, 100, true, true );
   obj.addParameterBool( LEADOUT, true, false, true, true, true );
   obj.addParameterBool( LEADIN, true, false, true, true, true );
@@ -72,56 +82,91 @@ function buildUI( obj ){
 //    obj The created object (Base)
 // -------------------------------------------------------------------------
 function buildObject( obj ){
-  let core      = obj.core();
-  let rotations = obj.getParameter( TURNS );
-  let steps     = obj.getParameter( STEPS );
-  let radiusI   = obj.getParameter( INNERRAD );
-  let radiusO   = obj.getParameter( OUTERRAD );
-  let height    = obj.getParameter( MOVE );
-  let lead      = obj.getParameter( LEAD );
-  let leadOut   = obj.getParameter( LEADOUT );
-  let leadIn    = obj.getParameter( LEADIN );
-  let yOff      = lead;
+  // delegate creation to dedicated generator class
+  let generator = new ThreadGenerator( obj );
+  generator.buildThread();
+}
 
-  // yOff is the distance from zero height pane
-  if ( leadIn == false ) {
-    yOff = 0.0;
+/******************************************************************************/
+/* Helper class to contain the actual generating code.                        */
+/* This code was implemented as class to allow carrying all the parameter     */
+/* values as member properties instead of passing them in from helper to      */
+/* helper function repeatedly.                                                */
+/******************************************************************************/
+
+// Constructor of the ThreadGenerator class.
+// This constructor extracts all parameter values from the passed in object
+// and stores them as member properties. The so created instance then can
+// be used to call its buildThread member function to produce the vertices
+// and polygons.
+//
+// Parameters:
+//    obj The object, carrying all the parameter values
+// -------------------------------------------------------------------------
+function ThreadGenerator( polyObject ) {
+  this.core      = polyObject.core();
+  this.rotations = polyObject.getParameter( TURNS );
+  this.steps     = polyObject.getParameter( STEPS );
+  this.radiusI   = polyObject.getParameter( INNERRAD );
+  this.radiusO   = polyObject.getParameter( OUTERRAD );
+  this.height    = polyObject.getParameter( MOVE );
+  this.lead      = polyObject.getParameter( LEAD );
+  this.leadOut   = polyObject.getParameter( LEADOUT );
+  this.leadIn    = polyObject.getParameter( LEADIN );
+
+  if ( this.leadIn == false ) {
+    this.yOff = 0.0;
   }
+  else {
+    this.yOff = this.lead;
+  }
+}
+
+// Generates the threaded cylinder.
+// This is the only method that is supposed to be called from outside.
+// -------------------------------------------------------------------------
+ThreadGenerator.prototype.buildThread = function() {
+  let rMax = this.rotations;  // the number of thread rotations
+  let sMax = this.steps;      // amount of steps per rortation
+  let h    = this.height;     // height difference in one rotation
+  let rI   = this.radiusI;    // inner cylinder radius
+  let rO   = this.radiusO;    // outer (thread) radius
+  let yOff = this.yOff;       // height offset due to lead in
 
   // create the threaded sides
-  for ( let rot = 0; rot < rotations; ++rot ) {
-    let yL = rot * height + yOff;
-    let yM = yL + (height / 2);
-    let p0 = core.vertexCount();
+  for ( let rot = 0; rot < rMax; ++rot ) {
+    let yL = rot * h + yOff;
+    let yM = yL + (h / 2);
+    let p0 = this.core.vertexCount();
 
-    addVertexRing( core, steps, radiusI, yL, height, true );  // lower vertices
+    this.addVertexRing( rI, yL, h, true );  // lower vertices
 
     // connect previous rotation to new lower rotation
     if ( rot > 0 ) {
-      createPolygons( core, steps, p0 - steps );
+      this.createPolygons( p0 - sMax );
     }
 
-    addVertexRing( core, steps, radiusO, yM, height, true );  // middle ring
-    createPolygons( core, steps, p0 );
+    this.addVertexRing( rO, yM, h, true );  // middle ring
+    this.createPolygons( p0 );
 
     // for the last winding, add finishing top ring
-    if ( rot + 1 == rotations ) {
-      addVertexRing( core, steps, radiusI, yL + height, height, true );
-      createPolygons( core, steps, p0 + steps );
+    if ( rot + 1 == rMax ) {
+      this.addVertexRing( rI, yL + h, h, true );
+      this.createPolygons( p0 + sMax );
     }
   }
 
   // close the gap (between last of previous and first of current rotation)
-  closeThreadGaps( core, steps, rotations );
+  this.closeThreadGaps();
 
   // add lead out and close top
-  if ( leadOut ) {
-    createLeadOut( core, steps, radiusI, rotations, height, lead, yOff );
+  if ( this.leadOut ) {
+    this.createLeadOut();
   }
 
   // add the lead in and close bottom
-  if ( leadIn ) {
-    createLeadIn( core, steps, radiusI, height, lead );
+  if ( this.leadIn ) {
+    this.createLeadIn();
   }
 }
 
@@ -129,18 +174,19 @@ function buildObject( obj ){
 // Produces a ring of vertices, optionally with increasing height.
 //
 // Parameters:
-//    core          The object core to add vertices to
-//    steps         Amount of steps for a full rotatation
 //    radius        Radius of a single rotation
 //    yStart        Vertical starting position for vertices
 //    height        height difference for one rotation
 //    movingHeight  Flag to increase hight per step up to specified height
 // -------------------------------------------------------------------------
-function addVertexRing( core, steps, radius, yStart, height, movingHeight ) {
-  for ( let step = 0; step < steps; ++step ) {
-    let ang = Math.PI * (step / steps) * 2;
+ThreadGenerator.prototype.addVertexRing = function( radius, yStart, height, movingHeight ) {
+  let sMax = this.steps;  // steps per thread rotation
+  let core = this.core;   // the object to add polygons to
+
+  for ( let step = 0; step < sMax; ++step ) {
+    let ang = Math.PI * (step / sMax) * 2;
     let x   = Math.cos( ang ) * radius;
-    let y   = yStart + ((height / steps) * step);
+    let y   = yStart + ((height / sMax) * step);
     let z   = Math.sin( ang ) * radius;
 
     if ( movingHeight == false ) {
@@ -157,16 +203,17 @@ function addVertexRing( core, steps, radius, yStart, height, movingHeight ) {
 // layer that was created directly (above) after that layer.
 //
 // Parameters:
-//    core          The object core to add vertices to
-//    steps         Amount of steps for a full rotatation
 //    firstVertex   Vertex index of first point on lower layer
 // -------------------------------------------------------------------------
-function createPolygons( core, steps, firstVertex ) {
-  for ( let step = 0; step < steps - 1; ++step ) {
+ThreadGenerator.prototype.createPolygons = function( firstVertex ) {
+  let sMax = this.steps;  // steps per thread rotation
+  let core = this.core;   // the object to add polygons to
+
+  for ( let step = 0; step < sMax - 1; ++step ) {
     let p0 = firstVertex + step;
 
     // the next (higher) layer is direcely steps vertices away
-    core.addIndexPolygon( 4, [ p0, p0 + 1, p0 + 1 + steps, p0 + steps] );
+    core.addIndexPolygon( 4, [ p0, p0 + 1, p0 + 1 + sMax, p0 + sMax ] );
   }
 }
 
@@ -176,20 +223,19 @@ function createPolygons( core, steps, firstVertex ) {
 // createPolygons function. But this leaves a gap between the last vertices of
 // one layer and the first vertices of the next layer. This gap is filled with
 // polygons by this function (reusing the existing vertices).
-//
-// Parameters:
-//    core        The object core to add vertices to
-//    steps       Amount of steps for a full rotatation
-//    rotations   Total amount of thread rotations
 // -------------------------------------------------------------------------
-function closeThreadGaps( core, steps, rotations ) {
-  for ( let rot = 0; rot < rotations - 1; ++rot ) {
-    let s2     = steps * 2;
-    let p0Last = (rot * s2) + (steps - 1);
+ThreadGenerator.prototype.closeThreadGaps = function() {
+  let rMax = this.rotations;   // total amount of thread rotations
+  let sMax = this.steps;       // steps per thread rotation
+  let core = this.core;        // the object to add polygons to
+
+  for ( let rot = 0; rot < rMax - 1; ++rot ) {
+    let s2     = sMax * 2;
+    let p0Last = (rot * s2) + (sMax - 1);
     let p1Next = (rot + 1) * s2;
 
-    core.addIndexPolygon( 4, [ p1Next, p1Next + steps, p0Last + steps, p0Last ] );
-    core.addIndexPolygon( 4, [ p1Next + steps, p1Next + s2, p0Last + s2, p0Last + steps ] );
+    core.addIndexPolygon( 4, [ p1Next, p1Next + sMax, p0Last + sMax, p0Last ] );
+    core.addIndexPolygon( 4, [ p1Next + sMax, p1Next + s2, p0Last + s2, p0Last + sMax ] );
   }
 }
 
@@ -198,41 +244,41 @@ function closeThreadGaps( core, steps, rotations ) {
 // surface of the "cylinder" with the first thread rotation. It is optional
 // but required to get a closed object. The lead in starts at the bottom (zero
 // height) and leads to the first thread rotation.
-//
-// Parameters:
-//    core      The object core to add vertices to
-//    steps     Amount of steps for a full rotatation
-//    radiusI   Inner radius of the cylinder
-//    height    Height of a single thread winding
-//    lead      Height of the lead in area
 // -------------------------------------------------------------------------
-function createLeadIn( core, steps, radiusI, height, lead ) {
-  let p0 = core.vertexCount();
-  addVertexRing( core, steps, radiusI, 0, 0, false );
+ThreadGenerator.prototype.createLeadIn = function() {
+  let rI      = this.radiusI;            // inner cylinder radius
+  let sMax    = this.steps;              // steps per thread rotation
+  let numPRot = sMax * 2;                // number vertices per thread rotation
+  let h       = this.height;             // hight difference of one thread turn
+  let core    = this.core;               // the object to add polygons to
+  let p0      = core.vertexCount();      // index of first point
+
+  this.addVertexRing( rI, 0, 0, false );
 
   // create lead in side segements
-  for ( let step = 0; step < steps - 1; ++step ) {
+  for ( let step = 0; step < sMax - 1; ++step ) {
     core.addIndexPolygon( 4, [p0 + step, p0 + step + 1, step + 1, step ] );
   }
 
   // close gap of lead in
-  let pLU = core.vertex( steps - 1 );
-  let pLM = new Vec3D( pLU.x, pLU.y - (height / 2), pLU.z );
-  core.addVertex( false, pLM );
-  core.addIndexPolygon( 3, [ steps, 2 * steps, core.vertexCount() - 1 ] );
-  core.addIndexPolygon( 3, [ steps, core.vertexCount() - 1, 0 ] );
-  core.addIndexPolygon( 3, [ 2 * steps, steps - 1, core.vertexCount() - 1 ] );
-  core.addIndexPolygon( 4, [ p0, 0, core.vertexCount() - 1, p0 + steps - 1 ] );
+  let pLU   = core.vertex( sMax - 1 );
+  let pLM   = new Vec3D( pLU.x, pLU.y - (h / 2), pLU.z );
+  let pLast = core.addVertex( false, pLM );
+
+  core.addIndexPolygon( 3, [ sMax, numPRot, pLast ] );
+  core.addIndexPolygon( 3, [ sMax, pLast, 0 ] );
+  core.addIndexPolygon( 3, [ numPRot, sMax - 1, pLast ] );
+  core.addIndexPolygon( 4, [ p0, 0, pLast, p0 + sMax - 1 ] );
 
   // add center point at 0/0/0 for the bottom lid
   let pC = core.addVertex( false, new Vec3D( 0, 0, 0 ) );
 
   // clode the bottom lid
-  for ( let step = 0; step < steps - 1; ++step ) {
+  for ( let step = 0; step < sMax - 1; ++step ) {
     core.addIndexPolygon( 3, [ pC, p0 + step + 1, p0 + step ] );
   }
 
-  core.addIndexPolygon( 3, [ pC, p0, p0 + steps - 1 ] );
+  core.addIndexPolygon( 3, [ pC, p0, p0 + sMax - 1 ] );
 }
 
 // Helper to create the optional lead out.
@@ -240,40 +286,38 @@ function createLeadIn( core, steps, radiusI, height, lead ) {
 // surface of the "cylinder" with the last thread rotation. It is optional
 // but required to get a closed object. The lead out starts at the top and leads
 // to the last thread rotation.
-//
-// Parameters:
-//    core       The object core to add vertices to
-//    steps      Amount of steps for a full rotatation
-//    radiusI    Inner radius of the cylinder
-//    rotations  Total number of thread rotations
-//    height     Height of a single thread winding
-//    lead       Height of the lead in area
-//    yOff       Additional, vertical offset (caused by optional lead in)
 // -------------------------------------------------------------------------
-function createLeadOut( core, steps, radiusI, rotations, height, lead, yOff ) {
-  let p0 = core.vertexCount() - 1;
+ThreadGenerator.prototype.createLeadOut = function() {
+  let core    = this.core;                   // the object to add polygons to
+  let rI      = this.radiusI;                // inner cylinder radius
+  let rMax    = this.rotations;              // total amount of rotations
+  let yOff    = this.yOff;                   // vertical offset due to lead in
+  let lead    = this.lead;                   // lead in/out length
+  let sMax    = this.steps;                  // steps per thread rotation
+  let numPRot = sMax * 2;                    // number vertices per thread rotation
+  let h       = this.height;                 // hight difference of one thread turn
+  let p0      = this.core.vertexCount() - 1; // last added vertex
 
   // create lead out
-  addVertexRing( core, steps, radiusI, rotations * height + yOff, height + lead, false );
-  createPolygons( core, steps, p0 - steps + 1 );
+  this.addVertexRing( rI, rMax * h + yOff, h + lead, false );
+  this.createPolygons( p0 - sMax + 1 );
 
   // close gap of lead out
-  let pLD = core.vertex( p0 + 1 - steps );  // left down (bottom of lead out)
-  let pLM = new Vec3D( pLD.x, pLD.y + (height / 2), pLD.z );
-
-  core.addVertex( false, pLM );  // add midpoint between pLD and up
-  core.addIndexPolygon( 3, [ p0, p0 - steps, core.vertexCount() - 1 ] );
-  core.addIndexPolygon( 3, [ p0 - steps, p0 - (2 * steps), core.vertexCount() - 1 ] );
-  core.addIndexPolygon( 4, [ p0 + steps, p0, core.vertexCount() - 1, p0 + 1 ] );
-  core.addIndexPolygon( 3, [ p0 - (2 * steps),  p0 - steps + 1, core.vertexCount() - 1 ] );
+  let pLD   = core.vertex( p0 + 1 - sMax );  // left down (bottom of lead out)
+  let pLM   = new Vec3D( pLD.x, pLD.y + (h / 2), pLD.z );
+  let pLast = core.addVertex( false, pLM );  // add midpoint between pLD and up
+  core.addIndexPolygon( 3, [ p0, p0 - sMax, pLast ] );
+  core.addIndexPolygon( 3, [ p0 - sMax, p0 - numPRot, pLast ] );
+  core.addIndexPolygon( 4, [ p0 + sMax, p0, pLast, p0 + 1 ] );
+  core.addIndexPolygon( 3, [ p0 - numPRot,  p0 - sMax + 1, pLast ] );
 
   // create center point for top lid
-  let pC = new Vec3D( 0, (rotations * height) + height + lead + yOff, 0 );
-  core.addVertex( false, pC );
+  let pC = new Vec3D( 0, (rMax * h) + h + lead + yOff, 0 );
+  pLast = core.addVertex( false, pC );
 
-  for ( let step = 0; step < steps - 1; ++step ) {
-    core.addIndexPolygon( 3, [ p0 + 1 + step, p0 + 2 + step, core.vertexCount() - 1 ] );
+  for ( let step = 0; step < sMax - 1; ++step ) {
+    core.addIndexPolygon( 3, [ p0 + 1 + step, p0 + 2 + step, pLast ] );
   }
 
-  core.addIndexPolygon( 3, [ p0 + 1, core.vertexCount() - 1, p0 + steps ] );
+  core.addIndexPolygon( 3, [ p0 + 1, pLast, p0 + sMax ] );
 }
