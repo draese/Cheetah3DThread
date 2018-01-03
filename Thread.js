@@ -57,7 +57,7 @@ const LEADOUT  = "Create Lead-Out";
 // -------------------------------------------------------------------------
 function buildUI( obj ){
   obj.setParameter( "name","Thread" );
-  obj.addParameterSelector( DIRECTION, [LEFT, RIGHT ], true, true );
+  obj.addParameterSelector( DIRECTION, [ RIGHT, LEFT ], true, true );
 
   obj.addParameterSeparator( "Thread Parameers" );
   obj.addParameterFloat( INNERRAD, 1.0, 0.1, 100, true, true );
@@ -113,6 +113,7 @@ function ThreadGenerator( polyObject ) {
   this.lead      = polyObject.getParameter( LEAD );
   this.leadOut   = polyObject.getParameter( LEADOUT );
   this.leadIn    = polyObject.getParameter( LEADIN );
+  this.turnRight = polyObject.getParameter( DIRECTION ) == 0;
 
   if ( this.leadIn == false ) {
     this.yOff = 0.0;
@@ -180,11 +181,12 @@ ThreadGenerator.prototype.buildThread = function() {
 //    movingHeight  Flag to increase hight per step up to specified height
 // -------------------------------------------------------------------------
 ThreadGenerator.prototype.addVertexRing = function( radius, yStart, height, movingHeight ) {
-  let sMax = this.steps;  // steps per thread rotation
-  let core = this.core;   // the object to add polygons to
+  let sMax    = this.steps;  // steps per thread rotation
+  let core    = this.core;   // the object to add polygons to
+  let fullRot = Math.PI * (this.turnRight?-2:2);
 
   for ( let step = 0; step < sMax; ++step ) {
-    let ang = Math.PI * (step / sMax) * 2;
+    let ang = fullRot * (step / sMax);
     let x   = Math.cos( ang ) * radius;
     let y   = yStart + ((height / sMax) * step);
     let z   = Math.sin( ang ) * radius;
@@ -213,7 +215,7 @@ ThreadGenerator.prototype.createPolygons = function( firstVertex ) {
     let p0 = firstVertex + step;
 
     // the next (higher) layer is direcely steps vertices away
-    core.addIndexPolygon( 4, [ p0, p0 + 1, p0 + 1 + sMax, p0 + sMax ] );
+    this.addPolygon( [ p0, p0 + 1, p0 + 1 + sMax, p0 + sMax ] );
   }
 }
 
@@ -234,8 +236,8 @@ ThreadGenerator.prototype.closeThreadGaps = function() {
     let p0Last = (rot * s2) + (sMax - 1);
     let p1Next = (rot + 1) * s2;
 
-    core.addIndexPolygon( 4, [ p1Next, p1Next + sMax, p0Last + sMax, p0Last ] );
-    core.addIndexPolygon( 4, [ p1Next + sMax, p1Next + s2, p0Last + s2, p0Last + sMax ] );
+    this.addPolygon( [ p1Next, p1Next + sMax, p0Last + sMax, p0Last ] );
+    this.addPolygon( [ p1Next + sMax, p1Next + s2, p0Last + s2, p0Last + sMax ] );
   }
 }
 
@@ -257,7 +259,7 @@ ThreadGenerator.prototype.createLeadIn = function() {
 
   // create lead in side segements
   for ( let step = 0; step < sMax - 1; ++step ) {
-    core.addIndexPolygon( 4, [p0 + step, p0 + step + 1, step + 1, step ] );
+    this.addPolygon( [p0 + step, p0 + step + 1, step + 1, step ] );
   }
 
   // close gap of lead in
@@ -265,20 +267,20 @@ ThreadGenerator.prototype.createLeadIn = function() {
   let pLM   = new Vec3D( pLU.x, pLU.y - (h / 2), pLU.z );
   let pLast = core.addVertex( false, pLM );
 
-  core.addIndexPolygon( 3, [ sMax, numPRot, pLast ] );
-  core.addIndexPolygon( 3, [ sMax, pLast, 0 ] );
-  core.addIndexPolygon( 3, [ numPRot, sMax - 1, pLast ] );
-  core.addIndexPolygon( 4, [ p0, 0, pLast, p0 + sMax - 1 ] );
+  this.addPolygon( [ sMax, numPRot, pLast ] );
+  this.addPolygon( [ sMax, pLast, 0 ] );
+  this.addPolygon( [ numPRot, sMax - 1, pLast ] );
+  this.addPolygon( [ p0, 0, pLast, p0 + sMax - 1 ] );
 
   // add center point at 0/0/0 for the bottom lid
   let pC = core.addVertex( false, new Vec3D( 0, 0, 0 ) );
 
   // clode the bottom lid
   for ( let step = 0; step < sMax - 1; ++step ) {
-    core.addIndexPolygon( 3, [ pC, p0 + step + 1, p0 + step ] );
+    this.addPolygon( [ pC, p0 + step + 1, p0 + step ] );
   }
 
-  core.addIndexPolygon( 3, [ pC, p0, p0 + sMax - 1 ] );
+  this.addPolygon( [ pC, p0, p0 + sMax - 1 ] );
 }
 
 // Helper to create the optional lead out.
@@ -306,18 +308,38 @@ ThreadGenerator.prototype.createLeadOut = function() {
   let pLD   = core.vertex( p0 + 1 - sMax );  // left down (bottom of lead out)
   let pLM   = new Vec3D( pLD.x, pLD.y + (h / 2), pLD.z );
   let pLast = core.addVertex( false, pLM );  // add midpoint between pLD and up
-  core.addIndexPolygon( 3, [ p0, p0 - sMax, pLast ] );
-  core.addIndexPolygon( 3, [ p0 - sMax, p0 - numPRot, pLast ] );
-  core.addIndexPolygon( 4, [ p0 + sMax, p0, pLast, p0 + 1 ] );
-  core.addIndexPolygon( 3, [ p0 - numPRot,  p0 - sMax + 1, pLast ] );
+  this.addPolygon( [ p0, p0 - sMax, pLast ] );
+  this.addPolygon( [ p0 - sMax, p0 - numPRot, pLast ] );
+  this.addPolygon( [ p0 + sMax, p0, pLast, p0 + 1 ] );
+  this.addPolygon( [ p0 - numPRot,  p0 - sMax + 1, pLast ] );
 
   // create center point for top lid
   let pC = new Vec3D( 0, (rMax * h) + h + lead + yOff, 0 );
   pLast = core.addVertex( false, pC );
 
   for ( let step = 0; step < sMax - 1; ++step ) {
-    core.addIndexPolygon( 3, [ p0 + 1 + step, p0 + 2 + step, pLast ] );
+    this.addPolygon( [ p0 + 1 + step, p0 + 2 + step, pLast ] );
   }
 
-  core.addIndexPolygon( 3, [ p0 + 1, pLast, p0 + sMax ] );
+  this.addPolygon( [ p0 + 1, pLast, p0 + sMax ] );
+}
+
+// Helper to create a polygon with the specifyed vertices.
+// The method expects an array of vertex indices and creates a new
+// polygon with these vertices. Bu default, we pass in the vertices
+// in counter clockwise order because the original code creates a
+// left rotation threaded cylinder. For a right rotating threaded
+// cylinder, we just create the vertices in opposite order. Now, all
+// normal vectors would look inside. So, we reverse the order of the
+// passed in vertices for a right rotating threaded cylinder to
+// compensate for this problem.
+//
+// Parameters:
+//    indexArray The array of vertex indices
+// -------------------------------------------------------------------------
+ThreadGenerator.prototype.addPolygon = function( indexArray ) {
+  let core    = this.core;       // the object to add polygons to
+  let reverse = this.turnRight;  // we need to reverse the vertext order
+
+  core.addIndexPolygon( indexArray.length, reverse?indexArray.reverse():indexArray );
 }
